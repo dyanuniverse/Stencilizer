@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="sl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Tattoo Stencil Generator</title>
+  <style>
+    body{font-family:Arial,Helvetica,sans-serif;background:#111;color:#eee;margin:0;padding:20px}
+    .wrap{max-width:980px;margin:0 auto}
+    h1{font-size:20px;margin:0 0 10px}
+    .row{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start}
+    .card{background:#1a1a1a;border:1px solid #2a2a2a;border-radius:12px;padding:14px}
+    .controls{flex:1;min-width:280px}
+    .preview{flex:2;min-width:320px}
+    label{display:block;margin:10px 0 6px;font-size:13px;color:#bbb}
+    input[type="range"]{width:100%}
+    input[type="file"]{width:100%}
+    button{background:#2b6cff;color:white;border:0;border-radius:10px;padding:10px 14px;margin-top:10px;cursor:pointer;font-size:14px}
+    button:disabled{opacity:.5;cursor:not-allowed}
+    .btn2{background:#333;border:1px solid #444}
+    .small{font-size:12px;color:#aaa;margin-top:8px;line-height:1.35}
+    canvas{width:100%;height:auto;border-radius:12px;background:#fff}
+    .pill{display:inline-block;background:#222;border:1px solid #333;color:#bbb;padding:4px 8px;border-radius:999px;font-size:12px;margin-left:6px}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Tattoo Stencil Generator <span class="pill">offline / brez serverja</span></h1>
+
+  <div class="row">
+    <div class="card controls">
+      <label>1) Naloži sliko</label>
+      <input type="file" id="file" accept="image/*" />
+
+      <label>Threshold (kontrast)</label>
+      <input type="range" id="thr" min="0" max="255" value="120" />
+
+      <label>Debelina linije</label>
+      <input type="range" id="thick" min="1" max="6" value="2" />
+
+      <label>Smooth (odstrani šum)</label>
+      <input type="range" id="smooth" min="0" max="10" value="2" />
+
+      <label>Detajli (edge sensitivity)</label>
+      <input type="range" id="detail" min="1" max="10" value="5" />
+
+      <label>
+        <input type="checkbox" id="invert" />
+        Inverzno (če hočeš obratno)
+      </label>
+
+      <button id="btnMake" disabled>2) Naredi šablono</button>
+      <button id="btnDL" class="btn2" disabled>3) Download PNG (transparent)</button>
+
+      <div class="small">
+        Tip: Najprej dvigni <b>Smooth</b>, če je slika šumasta. Če izgubi preveč detajlov, dvigni <b>Detajli</b> ali spusti <b>Threshold</b>.
+      </div>
+    </div>
+
+    <div class="card preview">
+      <label>Preview</label>
+      <canvas id="c"></canvas>
+      <div class="small">Ozadje v preview je belo, download PNG pa ima transparentno ozadje (za lažji print/transfer layout).</div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const fileEl = document.getElementById('file');
+  const thrEl = document.getElementById('thr');
+  const thickEl = document.getElementById('thick');
+  const smoothEl = document.getElementById('smooth');
+  const detailEl = document.getElementById('detail');
+  const invertEl = document.getElementById('invert');
+  const btnMake = document.getElementById('btnMake');
+  const btnDL = document.getElementById('btnDL');
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+  let img = new Image();
+  let hasImage = false;
+
+  function fitCanvasToImage(maxSide = 1400){
+    const w = img.naturalWidth, h = img.naturalHeight;
+    const m = Math.max(w, h);
+    let scale = 1;
+    if(m > maxSide) scale = maxSide / m;
+    canvas.width = Math.round(w * scale);
+    canvas.height = Math.round(h * scale);
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  }
+
+  fileEl.addEventListener('change', (e) => {
+    const f = e.target.files?.[0];
+    if(!f) return;
+    const r = new FileReader();
+    r.onload = () => {
+      img = new Image();
+      img.onload = () => {
+        hasImage = true;
+        fitCanvasToImage();
+        btnMake.disabled = false;
+        btnDL.disabled = true;
+      };
+      img.src = r.result;
+    };
+    r.readAsDataURL(f);
+  });
+
+  function makeStencil(){
+    if(!hasImage) return;
+
+    fitCanvasToImage();
+    const w = canvas.width, h = canvas.height;
+    const src = ctx.getImageData(0,0,w,h);
+    const d = src.data;
+
+    const g = new Uint8ClampedArray(w*h);
+    for(let i=0, p=0; i<d.length; i+=4, p++){
+      g[p] = (0.2126*d[i] + 0.7152*d[i+1] + 0.0722*d[i+2])|0;
+    }
+
+    const smooth = parseInt(smoothEl.value,10);
+    let gb = g;
+    if(smooth > 0){
+      gb = new Uint8ClampedArray(w*h);
+      const rad = smooth;
+      for(let y=0;y<h;y++){
+        for(let x=0;x<w;x++){
+          let sum=0, cnt=0;
+          for(let yy=y-rad; yy<=y+rad; yy++){
+            if(yy<0||yy>=h) continue;
+            const row = yy*w;
+            for(let xx=x-rad; xx<=x+rad; xx++){
+              if(xx<0||xx>=w) continue;
+              sum += g[row+xx];
+              cnt++;
+            }
+          }
+          gb[y*w+x] = (sum/cnt)|0;
+        }
+      }
+    }
+
+    const detail = parseInt(detailEl.value,10);
+    const k = detail;
+    const edges = new Uint8ClampedArray(w*h);
+    for(let y=1;y<h-1;y++){
+      for(let x=1;x<w-1;x++){
+        const i = y*w+x;
+
+        const a00 = gb[(y-1)*w + (x-1)], a01 = gb[(y-1)*w + x], a02 = gb[(y-1)*w + (x+1)];
+        const a10 = gb[y*w + (x-1)],     a12 = gb[y*w + (x+1)];
+        const a20 = gb[(y+1)*w + (x-1)], a21 = gb[(y+1)*w + x], a22 = gb[(y+1)*w + (x+1)];
+
+        const gx = (-1*a00) + (1*a02) + (-2*a10) + (2*a12) + (-1*a20) + (1*a22);
+        const gy = (-1*a00) + (-2*a01) + (-1*a02) + (1*a20) + (2*a21) + (1*a22);
+
+        let mag = Math.sqrt(gx*gx + gy*gy);
+        mag = Math.min(255, (mag * (0.6 + k*0.18)));
+        edges[i] = mag|0;
+      }
+    }
+
+    const thr = parseInt(thrEl.value,10);
+    const inv = invertEl.checked;
+
+    const out = ctx.createImageData(w,h);
+    const od = out.data;
+
+    for(let p=0; p<w*h; p++){
+      const v = edges[p];
+      const isLine = inv ? (v < thr) : (v > thr);
+      const alpha = isLine ? 255 : 0;
+      const ii = p*4;
+      od[ii] = 0; od[ii+1]=0; od[ii+2]=0; od[ii+3]=alpha;
+    }
+
+    const thick = parseInt(thickEl.value,10);
+    if(thick > 1){
+      const dil = new Uint8ClampedArray(w*h);
+      for(let p=0;p<w*h;p++) dil[p] = od[p*4+3];
+      const rad = thick-1;
+      for(let y=0;y<h;y++){
+        for(let x=0;x<w;x++){
+          let maxA = 0;
+          for(let yy=y-rad; yy<=y+rad; yy++){
+            if(yy<0||yy>=h) continue;
+            const row = yy*w;
+            for(let xx=x-rad; xx<=x+rad; xx++){
+              if(xx<0||xx>=w) continue;
+              const a = dil[row+xx];
+              if(a>maxA) maxA=a;
+              if(maxA===255) break;
+            }
+            if(maxA===255) break;
+          }
+          od[(y*w+x)*4+3] = maxA;
+        }
+      }
+    }
+
+    const prev = ctx.createImageData(w,h);
+    const pd = prev.data;
+    for(let i=0;i<pd.length;i+=4){
+      pd[i]=255; pd[i+1]=255; pd[i+2]=255; pd[i+3]=255;
+    }
+    for(let i=0;i<od.length;i+=4){
+      const a = od[i+3];
+      if(a){
+        pd[i]=0; pd[i+1]=0; pd[i+2]=0; pd[i+3]=255;
+      }
+    }
+    ctx.putImageData(prev,0,0);
+
+    canvas._transparentStencil = out;
+    btnDL.disabled = false;
+  }
+
+  btnMake.addEventListener('click', makeStencil);
+
+  btnDL.addEventListener('click', () => {
+    const w = canvas.width, h = canvas.height;
+    const stencil = canvas._transparentStencil;
+    if(!stencil) return;
+
+    const off = document.createElement('canvas');
+    off.width = w; off.height = h;
+    const octx = off.getContext('2d', { willReadFrequently: true });
+    octx.putImageData(stencil, 0, 0);
+
+    const a = document.createElement('a');
+    a.download = 'stencil.png';
+    a.href = off.toDataURL('image/png');
+    a.click();
+  });
+</script>
+</body>
+</html>
