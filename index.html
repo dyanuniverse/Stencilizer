@@ -1,240 +1,686 @@
 <!doctype html>
 <html lang="sl">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Tattoo Stencil Generator</title>
-  <style>
-    body{font-family:Arial,Helvetica,sans-serif;background:#111;color:#eee;margin:0;padding:20px}
-    .wrap{max-width:980px;margin:0 auto}
-    h1{font-size:20px;margin:0 0 10px}
-    .row{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start}
-    .card{background:#1a1a1a;border:1px solid #2a2a2a;border-radius:12px;padding:14px}
-    .controls{flex:1;min-width:280px}
-    .preview{flex:2;min-width:320px}
-    label{display:block;margin:10px 0 6px;font-size:13px;color:#bbb}
-    input[type="range"]{width:100%}
-    input[type="file"]{width:100%}
-    button{background:#2b6cff;color:white;border:0;border-radius:10px;padding:10px 14px;margin-top:10px;cursor:pointer;font-size:14px}
-    button:disabled{opacity:.5;cursor:not-allowed}
-    .btn2{background:#333;border:1px solid #444}
-    .small{font-size:12px;color:#aaa;margin-top:8px;line-height:1.35}
-    canvas{width:100%;height:auto;border-radius:12px;background:#fff}
-    .pill{display:inline-block;background:#222;border:1px solid #333;color:#bbb;padding:4px 8px;border-radius:999px;font-size:12px;margin-left:6px}
-  </style>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Tattoo Stencil PRO</title>
+<style>
+  body{background:#111;color:#eee;font-family:Arial,Helvetica,sans-serif;margin:0;padding:18px}
+  .wrap{max-width:1100px;margin:0 auto}
+  .row{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start}
+  .card{background:#1a1a1a;border:1px solid #2a2a2a;border-radius:14px;padding:14px}
+  .controls{flex:1;min-width:320px}
+  .preview{flex:2;min-width:320px}
+  .top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+  .pill{display:inline-block;background:#222;border:1px solid #333;color:#bdbdbd;padding:4px 9px;border-radius:999px;font-size:12px}
+  .status{font-size:12px;color:#aaa}
+  label{display:flex;justify-content:space-between;align-items:center;margin-top:12px;font-size:12px;color:#bbb;gap:10px}
+  label span.val{color:#ddd;font-variant-numeric:tabular-nums;min-width:46px;text-align:right}
+  input[type=range],input[type=file],select{width:100%}
+  button{padding:9px 12px;border-radius:10px;border:0;background:#2b6cff;color:#fff;cursor:pointer}
+  button.secondary{background:#262626;border:1px solid #3a3a3a}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  canvas{background:#fff;width:100%;height:auto;border-radius:14px;cursor:zoom-in}
+  .btnrow{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:10px}
+  .hint{font-size:12px;color:#9a9a9a;margin-top:10px;line-height:1.35}
+
+  /* Zoom modal */
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,.75);display:none;align-items:center;justify-content:center;padding:18px;z-index:9999}
+  .modal.open{display:flex}
+  .modalbox{background:#151519;border:1px solid #2a2a2a;border-radius:16px;max-width:min(1200px,95vw);max-height:90vh;width:95vw;height:90vh;display:flex;flex-direction:column}
+  .modalhead{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid #2a2a2a}
+  .modalhead b{font-size:13px;color:#d7d7d7}
+  .modalbody{flex:1;position:relative;overflow:hidden}
+  .modalcanvas{position:absolute;left:0;top:0}
+</style>
 </head>
 <body>
 <div class="wrap">
-  <h1>Tattoo Stencil Generator <span class="pill">offline / brez serverja</span></h1>
+  <div class="top">
+    <div>
+      <div style="font-size:18px;font-weight:700">Tattoo Stencil PRO <span class="pill">dual-res + detail boost</span></div>
+      <div class="status" id="status">Naloži sliko.</div>
+    </div>
+  </div>
 
   <div class="row">
     <div class="card controls">
-      <label>1) Naloži sliko</label>
-      <input type="file" id="file" accept="image/*" />
+      <div style="font-size:12px;color:#bbb;margin-bottom:6px">Naloži sliko</div>
+      <input type="file" id="file" accept="image/*"/>
 
-      <label>Threshold (kontrast)</label>
-      <input type="range" id="thr" min="0" max="255" value="120" />
+      <div class="btnrow">
+        <button id="autoThin" disabled>AUTO (Thin)</button>
+        <button id="aiClean" class="secondary" disabled>AI Cleanup (Remove BG)</button>
+        <button id="download" class="secondary" disabled>Download PNG (hi-res)</button>
+        <button id="hold" class="secondary" disabled>HOLD ORIGINAL</button>
+      </div>
+      <div id="aiStatus" style="margin-top:8px;font-size:12px;color:#9aa;min-height:16px"></div>
 
-      <label>Debelina linije</label>
-      <input type="range" id="thick" min="1" max="6" value="2" />
-
-      <label>Smooth (odstrani šum)</label>
-      <input type="range" id="smooth" min="0" max="10" value="2" />
-
-      <label>Detajli (edge sensitivity)</label>
-      <input type="range" id="detail" min="1" max="10" value="5" />
-
-      <label>
-        <input type="checkbox" id="invert" />
-        Inverzno (če hočeš obratno)
+      <label style="display:block">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span>Export quality</span>
+          <span class="val" id="vExport">2×</span>
+        </div>
+        <select id="exportScale">
+          <option value="2" selected>2× (recommended)</option>
+          <option value="3">3× (slower, bigger)</option>
+        </select>
       </label>
 
-      <button id="btnMake" disabled>2) Naredi šablono</button>
-      <button id="btnDL" class="btn2" disabled>3) Download PNG (transparent)</button>
+      <label style="display:block">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span>Input type</span>
+          <span class="val" id="vMode">Illustration</span>
+        </div>
+        <select id="mode">
+          <option value="ill" selected>Illustration / tattoo flash</option>
+          <option value="photo">Photo / realistic animal</option>
+        </select>
+      </label>
 
-      <div class="small">
-        Tip: Najprej dvigni <b>Smooth</b>, če je slika šumasta. Če izgubi preveč detajlov, dvigni <b>Detajli</b> ali spusti <b>Threshold</b>.
+      <label style="display:block;margin-top:10px">
+        <span style="display:flex;align-items:center;gap:10px;color:#bbb;font-size:12px">
+          <input type="checkbox" id="fineBoost" style="width:auto;transform:scale(1.05)"/>
+          Fine detail boost
+</span>
+      </label>
+
+      <label>Detail (1–100) <span class="val" id="vDetail">50</span></label>
+      <input type="range" id="detail" min="1" max="100" value="55"/>
+
+      <label>Threshold (1–100) <span class="val" id="vThr">50</span></label>
+      <input type="range" id="thr" min="1" max="100" value="48"/>
+
+      <label>Smooth (0–100) <span class="val" id="vSmooth">10</span></label>
+      <input type="range" id="smooth" min="0" max="100" value="12"/>
+
+      <label>Thickness (-100..100) <span class="val" id="vWidth">0</span></label>
+      <input type="range" id="width" min="-100" max="100" value="-40"/>
+
+      <label>Fill (0–100) <span class="val" id="vFill">0</span></label>
+      <input type="range" id="fill" min="0" max="100" value="0"/>
+
+      <div class="hint">
+        <b>Zoom:</b> klik na rezultat → modal. V zoomu: <b>Original</b> preklop, wheel zoom, drag premik.<br/>
+        <b>Dual-res:</b> preview hiter, download 2×/3× hi-res (transparent PNG).
       </div>
     </div>
 
     <div class="card preview">
-      <label>Preview</label>
-      <canvas id="c"></canvas>
-      <div class="small">Ozadje v preview je belo, download PNG pa ima transparentno ozadje (za lažji print/transfer layout).</div>
+      <div style="font-size:12px;color:#bbb;margin-bottom:6px">Preview (klik za zoom)</div>
+      <canvas id="canvas"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- Zoom modal -->
+<div class="modal" id="modal">
+  <div class="modalbox">
+    <div class="modalhead">
+      <div>
+        <b>Povečava</b>
+        <span class="pill">wheel = zoom</span>
+        <span class="pill">drag = premik</span>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button id="zoomOriginal" class="secondary">Original</button>
+        <button id="close" class="secondary">Zapri</button>
+      </div>
+    </div>
+    <div class="modalbody" id="modalbody">
+      <canvas id="zoomCanvas" class="modalcanvas"></canvas>
+    </div>
+    <div class="modalhead" style="border-top:1px solid #2a2a2a;border-bottom:0">
+      <button id="resetView" class="secondary">Reset view</button>
     </div>
   </div>
 </div>
 
 <script>
-  const fileEl = document.getElementById('file');
-  const thrEl = document.getElementById('thr');
-  const thickEl = document.getElementById('thick');
-  const smoothEl = document.getElementById('smooth');
-  const detailEl = document.getElementById('detail');
-  const invertEl = document.getElementById('invert');
-  const btnMake = document.getElementById('btnMake');
-  const btnDL = document.getElementById('btnDL');
-  const canvas = document.getElementById('c');
-  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+(() => {
+  const statusEl = document.getElementById("status");
+  window.onerror = (msg, src, line, col) => {
+    statusEl.textContent = `JS error: ${msg} @${line}:${col}`;
+  };
 
-  let img = new Image();
-  let hasImage = false;
+  // Elements
+  const fileInput = document.getElementById("file");
+  const canvas = document.getElementById("canvas");
+  const ctx = canvas.getContext("2d", { willReadFrequently:true });
 
-  function fitCanvasToImage(maxSide = 1400){
-    const w = img.naturalWidth, h = img.naturalHeight;
-    const m = Math.max(w, h);
-    let scale = 1;
-    if(m > maxSide) scale = maxSide / m;
-    canvas.width = Math.round(w * scale);
-    canvas.height = Math.round(h * scale);
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  const autoThinBtn = document.getElementById("autoThin");
+  const aiCleanBtn = document.getElementById("aiClean");
+  const aiStatusEl = document.getElementById("aiStatus");
+  const downloadBtn = document.getElementById("download");
+  const holdBtn = document.getElementById("hold");
+
+  const exportScaleEl = document.getElementById("exportScale");
+  const modeEl = document.getElementById("mode");
+  const fineBoostEl = document.getElementById("fineBoost");
+
+  const detailEl = document.getElementById("detail");
+  const thrEl = document.getElementById("thr");
+  const smoothEl = document.getElementById("smooth");
+  const widthEl = document.getElementById("width");
+  const fillEl = document.getElementById("fill");
+
+  const vExport = document.getElementById("vExport");
+  const vMode = document.getElementById("vMode");
+  const vDetail = document.getElementById("vDetail");
+  const vThr = document.getElementById("vThr");
+  const vSmooth = document.getElementById("vSmooth");
+  const vWidth = document.getElementById("vWidth");
+  const vFill = document.getElementById("vFill");
+
+  // Zoom modal
+  const modal = document.getElementById("modal");
+  const zoomCanvas = document.getElementById("zoomCanvas");
+  const zctx = zoomCanvas.getContext("2d", { willReadFrequently:true });
+  const closeBtn = document.getElementById("close");
+  const resetViewBtn = document.getElementById("resetView");
+  const modalBody = document.getElementById("modalbody");
+  const zoomOriginalBtn = document.getElementById("zoomOriginal");
+
+  // State
+  const PREVIEW_MAX = 1600;
+  let loaded = false;
+  let originalImage = null; // raw
+  let workingImage = null;  // processed source (after AI cleanup)
+
+
+  let previewOriginalCanvas = null; // canvas of original at preview size
+  let previewPixels = null;         // ImageData (white bg)
+  let previewStencil = null;        // ImageData (transparent)
+  let showingOriginal = false;
+  let zoomShowingOriginal = false;
+
+  function clamp(v,min,max){ return v<min?min:(v>max?max:v); }
+
+  function updateValueBadges(){
+    vExport.textContent = exportScaleEl.value + "×";
+    vMode.textContent = (modeEl.value === "photo") ? "Photo" : "Illustration";
+    vDetail.textContent = detailEl.value;
+    vThr.textContent = thrEl.value;
+    vSmooth.textContent = smoothEl.value;
+    vWidth.textContent = widthEl.value;
+    vFill.textContent = fillEl.value;
   }
 
-  fileEl.addEventListener('change', (e) => {
+  function fitToMaxSide(w,h,maxSide){
+    const m = Math.max(w,h);
+    if(m<=maxSide) return {w,h};
+    const s = maxSide / m;
+    return {w:Math.round(w*s), h:Math.round(h*s)};
+  }
+
+  function toGray(data, w, h){
+    const g = new Uint8ClampedArray(w*h);
+    for(let i=0,p=0;i<data.length;i+=4,p++){
+      g[p] = (0.2126*data[i] + 0.7152*data[i+1] + 0.0722*data[i+2])|0;
+    }
+    return g;
+  }
+
+  function blurGray(gray, w, h, smooth100){
+    const passes = Math.round(smooth100/20); // 0..5
+    if(passes<=0) return gray;
+    let cur = gray;
+    for(let p=0;p<passes;p++){
+      const out = new Uint8ClampedArray(w*h);
+      for(let y=1;y<h-1;y++){
+        for(let x=1;x<w-1;x++){
+          const i=y*w+x;
+          const s = cur[i] + cur[i-1] + cur[i+1] + cur[i-w] + cur[i+w] + cur[i-w-1] + cur[i-w+1] + cur[i+w-1] + cur[i+w+1];
+          out[i] = (s/9)|0;
+        }
+      }
+      cur = out;
+    }
+    return cur;
+  }
+
+  function contrastBoost(gray, w, h, amount){
+    if(amount<=0) return gray;
+    const blur = blurGray(gray, w, h, 40);
+    const out = new Uint8ClampedArray(w*h);
+    const k = amount * 1.2;
+    for(let i=0;i<w*h;i++){
+      let v = gray[i] + k*(gray[i] - blur[i]);
+      if(v<0) v=0; if(v>255) v=255;
+      out[i]=v|0;
+    }
+    return out;
+  }
+
+  function sobelMag(gray, w, h, detail100){
+    const mag = new Uint8ClampedArray(w*h);
+    const scale = 0.6 + (detail100/100)*3.4; // 0.6..4.0
+    for(let y=1;y<h-1;y++){
+      for(let x=1;x<w-1;x++){
+        const i=y*w+x;
+        const a00=gray[i-w-1], a01=gray[i-w], a02=gray[i-w+1];
+        const a10=gray[i-1],               a12=gray[i+1];
+        const a20=gray[i+w-1], a21=gray[i+w], a22=gray[i+w+1];
+        const gx = (-1*a00)+(1*a02)+(-2*a10)+(2*a12)+(-1*a20)+(1*a22);
+        const gy = (-1*a00)+(-2*a01)+(-1*a02)+(1*a20)+(2*a21)+(1*a22);
+        let m = Math.hypot(gx,gy) * scale;
+        if(m>255) m=255;
+        mag[i] = m|0;
+      }
+    }
+    return mag;
+  }
+
+  function sliderToCannyThresholds(thr100, mode){
+    const baseHigh = 20 + (thr100/100)*190; // 20..210
+    let high = baseHigh;
+    let low  = baseHigh * (mode==="photo" ? 0.35 : 0.45);
+    high = Math.min(240, Math.max(5, high));
+    low  = Math.min(high-1, Math.max(1, low));
+    return {low, high};
+  }
+
+  function hysteresisEdges(mag, w, h, highThr, lowThr){
+    const strong = 255, weak = 100;
+    const out = new Uint8ClampedArray(w*h);
+    for(let i=0;i<w*h;i++){
+      const v = mag[i];
+      out[i] = (v>=highThr) ? strong : (v>=lowThr ? weak : 0);
+    }
+    const stack = [];
+    for(let i=0;i<w*h;i++) if(out[i]===strong) stack.push(i);
+    while(stack.length){
+      const idx = stack.pop();
+      const x = idx % w, y = (idx/w)|0;
+      for(let yy=y-1; yy<=y+1; yy++){
+        if(yy<0||yy>=h) continue;
+        const row = yy*w;
+        for(let xx=x-1; xx<=x+1; xx++){
+          if(xx<0||xx>=w) continue;
+          const ni = row + xx;
+          if(out[ni]===weak){ out[ni]=strong; stack.push(ni); }
+        }
+      }
+    }
+    for(let i=0;i<w*h;i++) out[i] = (out[i]===strong) ? 255 : 0;
+    return out;
+  }
+
+  function applyThickness(mask, mag, w, h, width100, highThr){
+    if(width100 === 0) return mask;
+
+    if(width100 < 0){
+      const thin = Math.abs(width100);
+      const extra = (thin/100)*80; // 0..80
+      const keepThr = highThr + extra;
+      const out = mask.slice();
+      let kept = 0;
+      for(let i=0;i<w*h;i++){
+        if(out[i] && mag[i] < keepThr) out[i]=0;
+        if(out[i]) kept++;
+      }
+      if(kept < (w*h)*0.001){
+        const keepThr2 = highThr + extra*0.5;
+        for(let i=0;i<w*h;i++){
+          out[i] = (mask[i] && mag[i] >= keepThr2) ? 255 : 0;
+        }
+      }
+      return out;
+    }
+
+    const radius = Math.max(0, Math.round((width100/100)*6)); // 0..6
+    if(radius<=0) return mask;
+
+    let out = mask.slice();
+    for(let t=0;t<radius;t++){
+      const src = out.slice();
+      for(let y=1;y<h-1;y++){
+        for(let x=1;x<w-1;x++){
+          const i=y*w+x;
+          if(src[i]) continue;
+          if(src[i-1]||src[i+1]||src[i-w]||src[i+w]||src[i-w-1]||src[i-w+1]||src[i+w-1]||src[i+w+1]) out[i]=255;
+        }
+      }
+    }
+    return out;
+  }
+
+  function fillMaskFromGray(gray, w, h, fill100){
+    if(fill100<=0) return null;
+    const p = (fill100/100) * 0.35; // up to 35% darkest
+    const hist = new Uint32Array(256);
+    for(let i=0;i<gray.length;i++) hist[gray[i]]++;
+    const total = gray.length;
+    const target = Math.max(1, Math.floor(total * p));
+
+    let cum = 0;
+    let thr = 0;
+    for(let v=0; v<256; v++){
+      cum += hist[v];
+      if(cum >= target){ thr = v; break; }
+    }
+    thr = Math.min(thr, 140);
+
+    const mask = new Uint8ClampedArray(w*h);
+    for(let i=0;i<w*h;i++) mask[i] = (gray[i] <= thr) ? 255 : 0;
+
+    const radius = Math.round(fill100/45); // 0..2
+    if(radius>0){
+      let out = mask.slice();
+      for(let r=0;r<radius;r++){
+        const src = out.slice();
+        for(let y=1;y<h-1;y++){
+          for(let x=1;x<w-1;x++){
+            const i=y*w+x;
+            if(src[i]) continue;
+            if(src[i-1]||src[i+1]||src[i-w]||src[i+w]) out[i]=255;
+          }
+        }
+      }
+      return out;
+    }
+    return mask;
+  }
+
+  function combineMasks(a, b){
+    if(!b) return a;
+    const out = new Uint8ClampedArray(a.length);
+    for(let i=0;i<a.length;i++) out[i] = (a[i] || b[i]) ? 255 : 0;
+    return out;
+  }
+
+  function processAtMaxSide(maxSide){
+    const srcImg = workingImage || originalImage;
+    const fit = fitToMaxSide(srcImg.naturalWidth, srcImg.naturalHeight, maxSide);
+
+    const off = document.createElement("canvas");
+    off.width = fit.w;
+    off.height = fit.h;
+    const octx = off.getContext("2d", { willReadFrequently:true });
+    octx.drawImage(srcImg, 0,0, fit.w, fit.h);
+    const original = octx.getImageData(0,0,fit.w,fit.h);
+
+    let gray = toGray(original.data, fit.w, fit.h);
+
+    const mode = modeEl.value;
+    const smoothBase = parseInt(smoothEl.value,10);
+    const smoothAdj = (mode==="photo") ? clamp(smoothBase + 8, 0, 100) : smoothBase;
+    gray = blurGray(gray, fit.w, fit.h, smoothAdj);
+
+    const boostAmt = (mode==="photo") ? (fineBoostEl.checked ? 0.7 : 0.45) : (fineBoostEl.checked ? 0.35 : 0.15);
+    gray = contrastBoost(gray, fit.w, fit.h, boostAmt);
+
+    const detailBase = parseInt(detailEl.value,10);
+    const detailAdj = (mode==="photo")
+      ? clamp(detailBase + (fineBoostEl.checked?10:5), 1, 100)
+      : clamp(detailBase + (fineBoostEl.checked?6:0), 1, 100);
+
+    const mag = sobelMag(gray, fit.w, fit.h, detailAdj);
+
+    const thrPair = sliderToCannyThresholds(parseInt(thrEl.value,10), mode);
+    if(fineBoostEl.checked){
+      thrPair.high = Math.max(5, thrPair.high - (mode==="photo" ? 18 : 12));
+      thrPair.low  = Math.max(1, thrPair.low  - (mode==="photo" ? 10 : 8));
+    }
+
+    let edges = hysteresisEdges(mag, fit.w, fit.h, thrPair.high, thrPair.low);
+    edges = applyThickness(edges, mag, fit.w, fit.h, parseInt(widthEl.value,10), thrPair.high);
+
+    const fillM = fillMaskFromGray(gray, fit.w, fit.h, parseInt(fillEl.value,10));
+    const mask = combineMasks(edges, fillM);
+
+    const stencil = new ImageData(fit.w, fit.h);
+    const preview = new ImageData(fit.w, fit.h);
+    for(let i=0;i<fit.w*fit.h;i++){
+      const a = mask[i];
+      const ii = i*4;
+      stencil.data[ii]=0; stencil.data[ii+1]=0; stencil.data[ii+2]=0; stencil.data[ii+3]=a;
+      preview.data[ii]=255; preview.data[ii+1]=255; preview.data[ii+2]=255; preview.data[ii+3]=255;
+      if(a){ preview.data[ii]=0; preview.data[ii+1]=0; preview.data[ii+2]=0; }
+    }
+
+    return {w:fit.w, h:fit.h, preview, stencil, origCanvas: off};
+  }
+
+  function renderPreview(){
+    if(!loaded) return;
+    const res = processAtMaxSide(PREVIEW_MAX);
+    previewOriginalCanvas = res.origCanvas;
+    previewPixels = res.preview;
+    previewStencil = res.stencil;
+
+    canvas.width = res.w;
+    canvas.height = res.h;
+    if(!showingOriginal) ctx.putImageData(previewPixels, 0, 0);
+
+    downloadBtn.disabled = false;
+    statusEl.textContent = "OK. Klikni na sliko za zoom.";
+  }
+
+  // Debounce
+  let tmr = null;
+  function schedule(){
+    if(!loaded) return;
+    updateValueBadges();
+    clearTimeout(tmr);
+    tmr = setTimeout(renderPreview, 45);
+  }
+
+  function autoThin(){
+    if(!loaded) return;
+    if(modeEl.value==="photo"){
+      detailEl.value = 84;
+      thrEl.value    = 42;
+      smoothEl.value = 18;
+      widthEl.value  = -50;
+      fillEl.value   = 0;
+    }else{
+      detailEl.value = 78;
+      thrEl.value    = 46;
+      smoothEl.value = 12;
+      widthEl.value  = -55;
+      fillEl.value   = 0;
+    }
+    updateValueBadges();
+    schedule();
+  }
+  autoThinBtn.addEventListener("click", autoThin);
+
+  // Load file
+  fileInput.addEventListener("change", e=>{
     const f = e.target.files?.[0];
     if(!f) return;
     const r = new FileReader();
-    r.onload = () => {
-      img = new Image();
+    r.onload = ev => {
+      const img = new Image();
       img.onload = () => {
-        hasImage = true;
-        fitCanvasToImage();
-        btnMake.disabled = false;
-        btnDL.disabled = true;
+        originalImage = img;
+        workingImage = null;
+        loaded = true;
+        autoThinBtn.disabled = false;
+        aiCleanBtn.disabled = false;
+        holdBtn.disabled = false;
+        downloadBtn.disabled = true;
+        if(aiStatusEl) aiStatusEl.textContent = "";
+        updateValueBadges();
+        statusEl.textContent = "Procesiram…";
+        renderPreview();
       };
-      img.src = r.result;
+      img.src = ev.target.result;
     };
     r.readAsDataURL(f);
   });
 
-  function makeStencil(){
-    if(!hasImage) return;
+  // Listeners
+  [detailEl,thrEl,smoothEl,widthEl,fillEl].forEach(el=>el.addEventListener("input", schedule));
+  exportScaleEl.addEventListener("change", ()=>{ updateValueBadges(); });
+  modeEl.addEventListener("change", ()=>{ updateValueBadges(); schedule(); });
+  fineBoostEl.addEventListener("change", ()=>{ schedule(); });
 
-    fitCanvasToImage();
-    const w = canvas.width, h = canvas.height;
-    const src = ctx.getImageData(0,0,w,h);
-    const d = src.data;
-
-    const g = new Uint8ClampedArray(w*h);
-    for(let i=0, p=0; i<d.length; i+=4, p++){
-      g[p] = (0.2126*d[i] + 0.7152*d[i+1] + 0.0722*d[i+2])|0;
+  // Download hi-res stencil
+  
+  // AI cleanup (background removal) — in-browser ONNX (IMG.LY). NOTE: first run downloads model.
+  aiCleanBtn.addEventListener("click", async () => {
+    if(!loaded || !originalImage) return;
+    if(!window.__imglyRemoveBg){
+      if(aiStatusEl) aiStatusEl.textContent = "AI cleanup ni naložen (library import failed).";
+      return;
     }
-
-    const smooth = parseInt(smoothEl.value,10);
-    let gb = g;
-    if(smooth > 0){
-      gb = new Uint8ClampedArray(w*h);
-      const rad = smooth;
-      for(let y=0;y<h;y++){
-        for(let x=0;x<w;x++){
-          let sum=0, cnt=0;
-          for(let yy=y-rad; yy<=y+rad; yy++){
-            if(yy<0||yy>=h) continue;
-            const row = yy*w;
-            for(let xx=x-rad; xx<=x+rad; xx++){
-              if(xx<0||xx>=w) continue;
-              sum += g[row+xx];
-              cnt++;
-            }
-          }
-          gb[y*w+x] = (sum/cnt)|0;
+    try{
+      aiCleanBtn.disabled = true;
+      if(aiStatusEl) aiStatusEl.textContent = "AI cleanup: nalagam model… (prvič lahko traja)";
+      const blob = await window.__imglyRemoveBg(originalImage, (key, cur, tot) => {
+        if(aiStatusEl && tot){
+          const pct = Math.round((cur/tot)*100);
+          aiStatusEl.textContent = `AI cleanup: ${key} ${pct}%`;
         }
-      }
+      });
+      if(aiStatusEl) aiStatusEl.textContent = "AI cleanup: končano. (uporabljam očiščeno sliko)";
+      const url = URL.createObjectURL(blob);
+      const img = new Image();
+      img.onload = () => {
+        workingImage = img;
+        downloadBtn.disabled = false;
+        aiCleanBtn.disabled = false;
+        updatePreview();
+      };
+      img.onerror = () => {
+        if(aiStatusEl) aiStatusEl.textContent = "AI cleanup: napaka pri nalaganju rezultata.";
+        aiCleanBtn.disabled = false;
+      };
+      img.src = url;
+    }catch(err){
+      console.error(err);
+      if(aiStatusEl) aiStatusEl.textContent = "AI cleanup: napaka (poglej Console).";
+      aiCleanBtn.disabled = false;
     }
+  });
 
-    const detail = parseInt(detailEl.value,10);
-    const k = detail;
-    const edges = new Uint8ClampedArray(w*h);
-    for(let y=1;y<h-1;y++){
-      for(let x=1;x<w-1;x++){
-        const i = y*w+x;
+downloadBtn.addEventListener("click", ()=>{
+    if(!loaded) return;
+    statusEl.textContent = "Exporting hi-res…";
+    const mult = parseInt(exportScaleEl.value,10);
+    const exportMax = PREVIEW_MAX * mult;
+    const res = processAtMaxSide(exportMax);
 
-        const a00 = gb[(y-1)*w + (x-1)], a01 = gb[(y-1)*w + x], a02 = gb[(y-1)*w + (x+1)];
-        const a10 = gb[y*w + (x-1)],     a12 = gb[y*w + (x+1)];
-        const a20 = gb[(y+1)*w + (x-1)], a21 = gb[(y+1)*w + x], a22 = gb[(y+1)*w + (x+1)];
+    const off = document.createElement("canvas");
+    off.width = res.w; off.height = res.h;
+    off.getContext("2d", {willReadFrequently:true}).putImageData(res.stencil, 0, 0);
 
-        const gx = (-1*a00) + (1*a02) + (-2*a10) + (2*a12) + (-1*a20) + (1*a22);
-        const gy = (-1*a00) + (-2*a01) + (-1*a02) + (1*a20) + (2*a21) + (1*a22);
+    const a = document.createElement("a");
+    a.download = `stencil_${mult}x.png`;
+    a.href = off.toDataURL("image/png");
+    a.click();
+    statusEl.textContent = "OK. Download pripravljen.";
+  });
 
-        let mag = Math.sqrt(gx*gx + gy*gy);
-        mag = Math.min(255, (mag * (0.6 + k*0.18)));
-        edges[i] = mag|0;
-      }
+  // HOLD ORIGINAL
+  function setShowOriginal(on){
+    if(!loaded) return;
+    showingOriginal = on;
+    if(on){
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      if(previewOriginalCanvas) ctx.drawImage(previewOriginalCanvas, 0,0);
+      else ctx.drawImage((workingImage||originalImage), 0,0, canvas.width, canvas.height);
+    }else{
+      if(previewPixels) ctx.putImageData(previewPixels, 0, 0);
     }
+  }
+  holdBtn.addEventListener("pointerdown",(e)=>{ e.preventDefault(); holdBtn.setPointerCapture(e.pointerId); setShowOriginal(true); });
+  holdBtn.addEventListener("pointerup",(e)=>{ e.preventDefault(); setShowOriginal(false); });
+  holdBtn.addEventListener("pointercancel",(e)=>{ e.preventDefault(); setShowOriginal(false); });
 
-    const thr = parseInt(thrEl.value,10);
-    const inv = invertEl.checked;
+  // Zoom modal
+  let view = {scale:1, x:0, y:0};
+  let dragging = false;
+  let dragStart = {x:0,y:0,vx:0,vy:0};
 
-    const out = ctx.createImageData(w,h);
-    const od = out.data;
-
-    for(let p=0; p<w*h; p++){
-      const v = edges[p];
-      const isLine = inv ? (v < thr) : (v > thr);
-      const alpha = isLine ? 255 : 0;
-      const ii = p*4;
-      od[ii] = 0; od[ii+1]=0; od[ii+2]=0; od[ii+3]=alpha;
-    }
-
-    const thick = parseInt(thickEl.value,10);
-    if(thick > 1){
-      const dil = new Uint8ClampedArray(w*h);
-      for(let p=0;p<w*h;p++) dil[p] = od[p*4+3];
-      const rad = thick-1;
-      for(let y=0;y<h;y++){
-        for(let x=0;x<w;x++){
-          let maxA = 0;
-          for(let yy=y-rad; yy<=y+rad; yy++){
-            if(yy<0||yy>=h) continue;
-            const row = yy*w;
-            for(let xx=x-rad; xx<=x+rad; xx++){
-              if(xx<0||xx>=w) continue;
-              const a = dil[row+xx];
-              if(a>maxA) maxA=a;
-              if(maxA===255) break;
-            }
-            if(maxA===255) break;
-          }
-          od[(y*w+x)*4+3] = maxA;
-        }
-      }
-    }
-
-    const prev = ctx.createImageData(w,h);
-    const pd = prev.data;
-    for(let i=0;i<pd.length;i+=4){
-      pd[i]=255; pd[i+1]=255; pd[i+2]=255; pd[i+3]=255;
-    }
-    for(let i=0;i<od.length;i+=4){
-      const a = od[i+3];
-      if(a){
-        pd[i]=0; pd[i+1]=0; pd[i+2]=0; pd[i+3]=255;
-      }
-    }
-    ctx.putImageData(prev,0,0);
-
-    canvas._transparentStencil = out;
-    btnDL.disabled = false;
+  function resetView(){
+    const bw = modalBody.clientWidth, bh = modalBody.clientHeight;
+    const iw = canvas.width, ih = canvas.height;
+    const s = Math.min(bw/iw, bh/ih);
+    view.scale = s;
+    view.x = (bw - iw*s)/2;
+    view.y = (bh - ih*s)/2;
+    drawZoom();
   }
 
-  btnMake.addEventListener('click', makeStencil);
+  function drawZoom(){
+    const bw = modalBody.clientWidth, bh = modalBody.clientHeight;
+    zoomCanvas.width = bw; zoomCanvas.height = bh;
+    zctx.clearRect(0,0,bw,bh);
 
-  btnDL.addEventListener('click', () => {
-    const w = canvas.width, h = canvas.height;
-    const stencil = canvas._transparentStencil;
-    if(!stencil) return;
+    if(zoomShowingOriginal){
+      zctx.imageSmoothingEnabled = true;
+      if(previewOriginalCanvas){
+        zctx.drawImage(previewOriginalCanvas, view.x, view.y, previewOriginalCanvas.width*view.scale, previewOriginalCanvas.height*view.scale);
+      }else{
+        zctx.drawImage((workingImage||originalImage), view.x, view.y, canvas.width*view.scale, canvas.height*view.scale);
+      }
+      return;
+    }
 
-    const off = document.createElement('canvas');
-    off.width = w; off.height = h;
-    const octx = off.getContext('2d', { willReadFrequently: true });
-    octx.putImageData(stencil, 0, 0);
+    if(previewPixels){
+      zctx.imageSmoothingEnabled = false;
+      const tmp = document.createElement("canvas");
+      tmp.width = previewPixels.width;
+      tmp.height = previewPixels.height;
+      tmp.getContext("2d").putImageData(previewPixels, 0, 0);
+      zctx.drawImage(tmp, view.x, view.y, tmp.width*view.scale, tmp.height*view.scale);
+    }
+  }
 
-    const a = document.createElement('a');
-    a.download = 'stencil.png';
-    a.href = off.toDataURL('image/png');
-    a.click();
+  canvas.addEventListener("click", ()=>{
+    if(!loaded) return;
+    if(showingOriginal) return;
+    modal.classList.add("open");
+    zoomShowingOriginal = false;
+    zoomOriginalBtn.textContent = "Original";
+    resetView();
   });
+
+  closeBtn.addEventListener("click", ()=>modal.classList.remove("open"));
+  modal.addEventListener("click", (e)=>{ if(e.target === modal) modal.classList.remove("open"); });
+  resetViewBtn.addEventListener("click", resetView);
+  window.addEventListener("resize", ()=>{ if(modal.classList.contains("open")) resetView(); });
+
+  zoomOriginalBtn.addEventListener("click", ()=>{
+    if(!loaded) return;
+    zoomShowingOriginal = !zoomShowingOriginal;
+    zoomOriginalBtn.textContent = zoomShowingOriginal ? "Stencil" : "Original";
+    drawZoom();
+  });
+
+  modalBody.addEventListener("wheel", (e)=>{
+    if(!modal.classList.contains("open")) return;
+    e.preventDefault();
+    const delta = Math.sign(e.deltaY);
+    const factor = (delta>0) ? 0.9 : 1.1;
+    const mx = e.offsetX, my = e.offsetY;
+    const wx = (mx - view.x) / view.scale;
+    const wy = (my - view.y) / view.scale;
+
+    view.scale = clamp(view.scale * factor, 0.05, 40);
+    view.x = mx - wx * view.scale;
+    view.y = my - wy * view.scale;
+    drawZoom();
+  }, {passive:false});
+
+  modalBody.addEventListener("mousedown", (e)=>{
+    dragging = true;
+    dragStart.x = e.clientX; dragStart.y = e.clientY;
+    dragStart.vx = view.x; dragStart.vy = view.y;
+  });
+  window.addEventListener("mousemove", (e)=>{
+    if(!dragging || !modal.classList.contains("open")) return;
+    view.x = dragStart.vx + (e.clientX - dragStart.x);
+    view.y = dragStart.vy + (e.clientY - dragStart.y);
+    drawZoom();
+  });
+  window.addEventListener("mouseup", ()=> dragging=false);
+
+  updateValueBadges();
+})(); 
 </script>
 </body>
 </html>
