@@ -8,7 +8,478 @@
     :root{
       --bg:#0b0c10; --panel:#111218; --text:#e9e9ee; --muted:#a8a8b3;
       --line:#232434; --accent:#7c5cff; --good:#22c55e;
+      --shadow:0 12px 35px rgba(0,0,0,.35); --r:18px;<!doctype html>
+<html lang="sl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Outline Trace (Edge Extractor)</title>
+  <style>
+    :root{
+      --bg:#0b0c10; --panel:#111218; --text:#e9e9ee; --muted:#a8a8b3;
+      --line:#232434; --accent:#7c5cff; --good:#22c55e;
       --shadow:0 12px 35px rgba(0,0,0,.35); --r:18px;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; font-family:var(--sans); color:var(--text);
+      background:
+        radial-gradient(900px 500px at 20% -10%, rgba(124,92,255,.18), transparent 60%),
+        radial-gradient(900px 500px at 90% 0%, rgba(34,197,94,.12), transparent 55%),
+        var(--bg);
+    }
+    header{
+      padding:18px; border-bottom:1px solid rgba(35,36,52,.75);
+      background:rgba(11,12,16,.75); backdrop-filter: blur(10px);
+      position:sticky; top:0; z-index:10;
+    }
+    .wrap{max-width:1200px; margin:0 auto; padding:18px}
+    .brand{max-width:1200px; margin:0 auto; padding:0 18px}
+    h1{margin:0; font-size:18px}
+    .sub{margin:6px 0 0; color:var(--muted); font-size:13px}
+    .row{display:grid; grid-template-columns: 380px 1fr; gap:16px; align-items:start}
+    @media (max-width: 980px){ .row{grid-template-columns:1fr} }
+    .card{
+      background:rgba(17,18,24,.78);
+      border:1px solid rgba(35,36,52,.8);
+      border-radius:var(--r);
+      box-shadow:var(--shadow);
+    }
+    .panel{padding:14px}
+    label{display:block; font-size:13px; color:var(--muted); margin:10px 0 6px}
+    input[type="range"], input[type="file"], select{width:100%; accent-color: var(--accent);}
+    select{
+      padding:10px 10px; border-radius:12px;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.25);
+      color:var(--text);
+      outline:none;
+    }
+    .grid2{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+    .btns{display:flex; gap:10px; flex-wrap:wrap; margin-top:12px}
+    button{
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.04);
+      color:var(--text);
+      padding:10px 12px; border-radius:14px;
+      cursor:pointer; font-size:14px;
+    }
+    button.primary{border-color: rgba(124,92,255,.55); background: rgba(124,92,255,.18)}
+    button.good{border-color: rgba(34,197,94,.55); background: rgba(34,197,94,.14)}
+    button:hover{background: rgba(255,255,255,.06)}
+    .hint{font-size:12px; color:var(--muted); line-height:1.5; margin-top:10px}
+    .canvasWrap{padding:14px}
+    .canRow{display:grid; grid-template-columns:1fr 1fr; gap:14px}
+    @media (max-width: 980px){ .canRow{grid-template-columns:1fr} }
+    .canBox{padding:12px; border:1px solid rgba(255,255,255,.10); border-radius:16px; background: rgba(0,0,0,.20)}
+    .canBox h3{margin:0 0 10px; font-size:13px; color:var(--muted); font-family:var(--mono)}
+    canvas{width:100%; height:auto; border-radius:12px; background:#0f1016; border:1px solid rgba(255,255,255,.08)}
+    .small{font-family:var(--mono); font-size:12px; color:var(--muted)}
+  </style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <h1>Outline Trace — Edge extractor (trace-oriented)</h1>
+    <p class="sub">Privzeto: Canny edges + cleanup • brez “fill” threshold stencila</p>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="row">
+    <div class="card panel">
+      <label>Upload slike (PNG/JPG)</label>
+      <input id="file" type="file" accept="image/png,image/jpeg" />
+
+      <div class="grid2">
+        <div>
+          <label>Blur (odstrani šum)</label>
+          <input id="blur" type="range" min="0" max="8" step="1" value="2" />
+          <div class="small"><span id="blurVal">2</span></div>
+        </div>
+        <div>
+          <label>Edge strength</label>
+          <select id="preset">
+            <option value="soft">Soft</option>
+            <option value="normal" selected>Normal</option>
+            <option value="hard">Hard</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="grid2">
+        <div>
+          <label>Canny low</label>
+          <input id="low" type="range" min="0" max="255" step="1" value="45" />
+          <div class="small"><span id="lowVal">45</span></div>
+        </div>
+        <div>
+          <label>Canny high</label>
+          <input id="high" type="range" min="0" max="255" step="1" value="140" />
+          <div class="small"><span id="highVal">140</span></div>
+        </div>
+      </div>
+
+      <div class="grid2">
+        <div>
+          <label>Line width</label>
+          <input id="thick" type="range" min="0" max="4" step="1" value="0" />
+          <div class="small"><span id="thickVal">0</span> (0 = thin)</div>
+        </div>
+        <div>
+          <label>Cleanup (zapri mikro luknje)</label>
+          <input id="close" type="range" min="0" max="3" step="1" value="1" />
+          <div class="small"><span id="closeVal">1</span></div>
+        </div>
+      </div>
+
+      <div class="grid2">
+        <div>
+          <label>Remove speckles</label>
+          <input id="speck" type="range" min="0" max="120" step="5" value="40" />
+          <div class="small"><span id="speckVal">40</span> px</div>
+        </div>
+        <div>
+          <label><input id="invert" type="checkbox" checked /> Črne linije na belem</label>
+        </div>
+      </div>
+
+      <div class="btns">
+        <button class="primary" id="run">Trace outline</button>
+        <button id="auto">Auto-update: OFF</button>
+        <button class="good" id="download" disabled>Prenesi PNG</button>
+      </div>
+
+      <div class="hint">
+        <b>Kako do najboljšega outline:</b>
+        Blur 1–2, preset Normal, low 35–60, high 110–170.
+        Če je preveč šuma → dvigni Blur ali speck. Če manjka detajlov → znižaj Blur in low.
+      </div>
+    </div>
+
+    <div class="card canvasWrap">
+      <div class="canRow">
+        <div class="canBox">
+          <h3>ORIGINAL</h3>
+          <canvas id="c0" width="900" height="600"></canvas>
+        </div>
+        <div class="canBox">
+          <h3>OUTLINE</h3>
+          <canvas id="c1" width="900" height="600"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+  const els={
+    file:document.getElementById('file'),
+    blur:document.getElementById('blur'),
+    blurVal:document.getElementById('blurVal'),
+    preset:document.getElementById('preset'),
+    low:document.getElementById('low'),
+    lowVal:document.getElementById('lowVal'),
+    high:document.getElementById('high'),
+    highVal:document.getElementById('highVal'),
+    thick:document.getElementById('thick'),
+    thickVal:document.getElementById('thickVal'),
+    close:document.getElementById('close'),
+    closeVal:document.getElementById('closeVal'),
+    speck:document.getElementById('speck'),
+    speckVal:document.getElementById('speckVal'),
+    invert:document.getElementById('invert'),
+    run:document.getElementById('run'),
+    auto:document.getElementById('auto'),
+    download:document.getElementById('download'),
+    c0:document.getElementById('c0'),
+    c1:document.getElementById('c1'),
+  };
+  const ctx0=els.c0.getContext('2d',{willReadFrequently:true});
+  const ctx1=els.c1.getContext('2d',{willReadFrequently:true});
+  let sourceImage=null, autoUpdate=false;
+
+  function fitToMax(w,h,maxSide=1200){
+    const s=Math.min(1,maxSide/Math.max(w,h));
+    return {w:Math.round(w*s), h:Math.round(h*s)};
+  }
+  function sync(){
+    els.blurVal.textContent=els.blur.value;
+    els.lowVal.textContent=els.low.value;
+    els.highVal.textContent=els.high.value;
+    els.thickVal.textContent=els.thick.value;
+    els.closeVal.textContent=els.close.value;
+    els.speckVal.textContent=els.speck.value;
+  }
+  sync();
+
+  // --- fast box blur on grayscale
+  function boxBlurGray(src,w,h,r){
+    if(r<=0) return src;
+    const tmp=new Uint8ClampedArray(w*h);
+    const dst=new Uint8ClampedArray(w*h);
+    for(let y=0;y<h;y++){
+      let sum=0;
+      for(let x=0;x<w;x++){
+        const i=y*w+x;
+        if(x===0){
+          sum=0;
+          for(let k=-r;k<=r;k++){
+            const xx=clamp(k,0,w-1);
+            sum+=src[y*w+xx];
+          }
+        }else{
+          const add=clamp(x+r,0,w-1);
+          const sub=clamp(x-r-1,0,w-1);
+          sum+=src[y*w+add]-src[y*w+sub];
+        }
+        tmp[i]=sum/(2*r+1);
+      }
+    }
+    for(let x=0;x<w;x++){
+      let sum=0;
+      for(let y=0;y<h;y++){
+        const i=y*w+x;
+        if(y===0){
+          sum=0;
+          for(let k=-r;k<=r;k++){
+            const yy=clamp(k,0,h-1);
+            sum+=tmp[yy*w+x];
+          }
+        }else{
+          const add=clamp(y+r,0,h-1);
+          const sub=clamp(y-r-1,0,h-1);
+          sum+=tmp[add*w+x]-tmp[sub*w+x];
+        }
+        dst[i]=sum/(2*r+1);
+      }
+    }
+    return dst;
+  }
+
+  // --- Sobel magnitude
+  function sobelMag(gray,w,h){
+    const out=new Uint8ClampedArray(w*h);
+    for(let y=1;y<h-1;y++){
+      for(let x=1;x<w-1;x++){
+        const a00=gray[(y-1)*w+(x-1)], a01=gray[(y-1)*w+x], a02=gray[(y-1)*w+(x+1)];
+        const a10=gray[y*w+(x-1)],                 a12=gray[y*w+(x+1)];
+        const a20=gray[(y+1)*w+(x-1)], a21=gray[(y+1)*w+x], a22=gray[(y+1)*w+(x+1)];
+        const gx=(-a00+a02)+(-2*a10+2*a12)+(-a20+a22);
+        const gy=(a00+2*a01+a02)+(-a20-2*a21-a22);
+        let mag=Math.sqrt(gx*gx+gy*gy);
+        if(mag>255) mag=255;
+        out[y*w+x]=mag;
+      }
+    }
+    return out;
+  }
+
+  // --- Canny-like: double threshold + simple hysteresis
+  function cannyLike(gray,w,h,low,high){
+    const mag=sobelMag(gray,w,h);
+    const strong=255, weak=80;
+    const out=new Uint8ClampedArray(w*h);
+    for(let i=0;i<mag.length;i++){
+      const v=mag[i];
+      out[i]=(v>=high)?strong:(v>=low?weak:0);
+    }
+    // hysteresis
+    for(let y=1;y<h-1;y++){
+      for(let x=1;x<w-1;x++){
+        const i=y*w+x;
+        if(out[i]!==weak) continue;
+        let ok=false;
+        for(let yy=-1;yy<=1;yy++){
+          for(let xx=-1;xx<=1;xx++){
+            if(out[(y+yy)*w+(x+xx)]===strong){ ok=true; break; }
+          }
+          if(ok) break;
+        }
+        out[i]=ok?strong:0;
+      }
+    }
+    return out; // 255 edges
+  }
+
+  // --- morphology
+  function dilate(src,w,h,r){
+    if(r<=0) return src;
+    const dst=new Uint8ClampedArray(w*h);
+    for(let y=0;y<h;y++){
+      for(let x=0;x<w;x++){
+        let m=0;
+        for(let yy=y-r;yy<=y+r;yy++){
+          const y2=clamp(yy,0,h-1), row=y2*w;
+          for(let xx=x-r;xx<=x+r;xx++){
+            const x2=clamp(xx,0,w-1);
+            const v=src[row+x2];
+            if(v>m) m=v;
+          }
+        }
+        dst[y*w+x]=m;
+      }
+    }
+    return dst;
+  }
+  function erode(src,w,h,r){
+    if(r<=0) return src;
+    const dst=new Uint8ClampedArray(w*h);
+    for(let y=0;y<h;y++){
+      for(let x=0;x<w;x++){
+        let m=255;
+        for(let yy=y-r;yy<=y+r;yy++){
+          const y2=clamp(yy,0,h-1), row=y2*w;
+          for(let xx=x-r;xx<=x+r;xx++){
+            const x2=clamp(xx,0,w-1);
+            const v=src[row+x2];
+            if(v<m) m=v;
+          }
+        }
+        dst[y*w+x]=m;
+      }
+    }
+    return dst;
+  }
+  function closing(src,w,h,r){
+    const d=dilate(src,w,h,r);
+    return erode(d,w,h,r);
+  }
+
+  // Remove tiny connected components (speckles)
+  function removeSpeckles(bin,w,h,minSize){
+    if(minSize<=0) return bin;
+    const out=bin.slice();
+    const seen=new Uint8Array(w*h);
+    const qx=new Int32Array(w*h);
+    const qy=new Int32Array(w*h);
+
+    for(let i=0;i<out.length;i++){
+      if(out[i]!==255 || seen[i]) continue;
+
+      let head=0, tail=0;
+      const sx=i%w, sy=(i/w)|0;
+      qx[tail]=sx; qy[tail]=sy; tail++;
+      seen[i]=1;
+
+      const pts=[];
+      while(head<tail){
+        const x=qx[head], y=qy[head]; head++;
+        const idx=y*w+x;
+        pts.push(idx);
+
+        for(let yy=y-1;yy<=y+1;yy++){
+          for(let xx=x-1;xx<=x+1;xx++){
+            if(xx<0||yy<0||xx>=w||yy>=h) continue;
+            const j=yy*w+xx;
+            if(out[j]===255 && !seen[j]){
+              seen[j]=1;
+              qx[tail]=xx; qy[tail]=yy; tail++;
+            }
+          }
+        }
+      }
+      if(pts.length < minSize){
+        for(const idx of pts) out[idx]=0;
+      }
+    }
+    return out;
+  }
+
+  function drawOriginal(img){
+    const {w,h}=fitToMax(img.width,img.height,1200);
+    els.c0.width=w; els.c0.height=h;
+    els.c1.width=w; els.c1.height=h;
+    ctx0.clearRect(0,0,w,h);
+    ctx0.drawImage(img,0,0,w,h);
+    ctx1.fillStyle='#fff'; ctx1.fillRect(0,0,w,h);
+    els.download.disabled=true;
+  }
+
+  function applyPreset(){
+    const p=els.preset.value;
+    if(p==="soft"){ els.low.value=30; els.high.value=110; }
+    if(p==="normal"){ els.low.value=45; els.high.value=140; }
+    if(p==="hard"){ els.low.value=65; els.high.value=180; }
+    sync();
+    if(autoUpdate) run();
+  }
+
+  function run(){
+    if(!sourceImage) return;
+    const blurR=Number(els.blur.value);
+    const low=Number(els.low.value);
+    const high=Number(els.high.value);
+    const thick=Number(els.thick.value);
+    const closeR=Number(els.close.value);
+    const speck=Number(els.speck.value);
+    const invert=els.invert.checked;
+
+    const w=els.c0.width, h=els.c0.height;
+    const data=ctx0.getImageData(0,0,w,h).data;
+
+    let gray=new Uint8ClampedArray(w*h);
+    for(let i=0,p=0;i<gray.length;i++,p+=4){
+      const r=data[p], g=data[p+1], b=data[p+2];
+      gray[i]=(0.2126*r+0.7152*g+0.0722*b)|0;
+    }
+    if(blurR>0) gray=boxBlurGray(gray,w,h,blurR);
+
+    // outline
+    let edges=cannyLike(gray,w,h,low,high);
+
+    // cleanup + optional thickness
+    if(closeR>0) edges=closing(edges,w,h,closeR);
+    edges=removeSpeckles(edges,w,h,speck);
+    if(thick>0) edges=dilate(edges,w,h,thick);
+
+    // render
+    const out=ctx1.createImageData(w,h);
+    const o=out.data;
+    for(let i=0,p=0;i<edges.length;i++,p+=4){
+      const on = edges[i]===255;
+      const v = invert ? (on?0:255) : (on?255:0);
+      o[p]=v; o[p+1]=v; o[p+2]=v; o[p+3]=255;
+    }
+    ctx1.putImageData(out,0,0);
+    els.download.disabled=false;
+  }
+
+  els.file.addEventListener('change',(e)=>{
+    const f=e.target.files?.[0]; if(!f) return;
+    const url=URL.createObjectURL(f);
+    const img=new Image();
+    img.onload=()=>{ sourceImage=img; drawOriginal(img); if(autoUpdate) run(); URL.revokeObjectURL(url); };
+    img.src=url;
+  });
+
+  els.run.addEventListener('click',run);
+  els.auto.addEventListener('click',()=>{
+    autoUpdate=!autoUpdate;
+    els.auto.textContent=`Auto-update: ${autoUpdate?'ON':'OFF'}`;
+    if(autoUpdate) run();
+  });
+
+  els.preset.addEventListener('change', applyPreset);
+
+  ['blur','low','high','thick','close','speck'].forEach(id=>{
+    els[id].addEventListener('input',()=>{ sync(); if(autoUpdate) run(); });
+  });
+  els.invert.addEventListener('change',()=>{ if(autoUpdate) run(); });
+
+  els.download.addEventListener('click',()=>{
+    const a=document.createElement('a');
+    a.download='outline_trace.png';
+    a.href=els.c1.toDataURL('image/png');
+    a.click();
+  });
+</script>
+</body>
+</html>
+
       --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
       --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
     }
